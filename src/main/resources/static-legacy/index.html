@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>五子棋</title>
+  <link rel="stylesheet" href="css/style.css?v=72">
+</head>
+<body data-arena="1">
+
+  <header class="top-bar">
+    <button type="button" class="top-bar__me" id="top-me">
+      <span class="top-bar__avatar" id="top-avatar" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c1.6-3.4 4.3-5 7.5-5s5.9 1.6 7.5 5"/></svg>
+      </span>
+      <span class="top-bar__me-text">
+        <span class="top-bar__me-name" id="user-name">游客 · 点击登录</span>
+        <span class="top-bar__me-score" id="user-score" hidden>积分 —</span>
+      </span>
+    </button>
+    <div class="top-bar__currencies">
+      <button type="button" class="top-bar__pill top-bar__pill--coin" id="btn-coins">金币 <b id="coin-num">—</b></button>
+      <button type="button" class="top-bar__pill top-bar__pill--diamond" id="btn-diamonds">钻石 <b id="diamond-num">0</b></button>
+    </div>
+    <button type="button" class="top-bar__btn" id="btn-settings" aria-label="设置">
+      <span class="icon-bar icon-bar--settings" aria-hidden="true"></span>
+    </button>
+  </header>
+
+  <main class="page page--home">
+    <div class="home-left">
+      <!-- M3.3：模式卡片；本地双人/人机/在线/残局都在同一竞技场就地开局
+           （仅在线对局进行中点残局仍跳独立页，避免抢走服务端权威局） -->
+      <div class="modes">
+        <!-- 九期：在线模式点亮（实时匹配 + 服务端权威对局） -->
+        <button type="button" class="mode-card" id="mode-online">
+          <span class="mode-card__name">在线模式</span>
+          <span class="mode-card__desc">实时匹配 · 真人对弈</span>
+        </button>
+        <button type="button" class="mode-card" id="mode-bot">
+          <span class="mode-card__name">人机对战</span>
+          <span class="mode-card__desc">挑战电脑 · 三档棋力</span>
+        </button>
+        <!-- 九期：房间组队（凭房间号邀请好友，整行横幅卡，与本地双人同款） -->
+        <button type="button" class="mode-card mode-card--wide" id="mode-room">
+          <span class="mode-card__name">房间组队</span>
+          <span class="mode-card__desc">房间号邀请 · 好友对弈</span>
+        </button>
+        <button type="button" class="mode-card mode-card--wide" id="mode-local">
+          <span class="mode-card__name">本地双人</span>
+          <span class="mode-card__desc">同屏对弈 · 就地开局</span>
+        </button>
+
+        <!-- M6.5：残局挑战入口（正解闯关制）；角标由下方脚本按进度点亮 -->
+        <button type="button" class="mode-card mode-card--wide" id="mode-puzzle">
+          <span class="mode-card__name">残局挑战</span>
+          <span class="mode-card__desc">正解闯关 · 黑先制胜</span>
+          <span class="mode-card__badge" id="puzzle-badge" hidden></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 中央对局竞技场：真正的对局棋盘，本地双人/人机都在这里下；
+         待机态（is-idle）只露棋盘与提示贴，点左侧模式即开
+         body data-arena="1" 让 game.js 走待机初始化 -->
+    <section id="arena" class="arena is-idle">
+      <!-- 双方信息条：轮到谁谁高亮；data-side 与棋子色对应（1 黑 2 白） -->
+      <div class="players">
+        <div class="players__item" data-side="1">
+          <span class="players__stone players__stone--black" aria-hidden="true"></span>黑方
+        </div>
+        <div class="players__item" data-side="2">
+          <span class="players__stone players__stone--white" aria-hidden="true"></span>白方
+        </div>
+      </div>
+
+      <!-- 棋盘正上方的计时牌：方框奶油牌，醒目居中（id 契约与 game.js 对齐） -->
+      <div class="arena-clock">
+        <span class="arena-clock__box" id="timer">00:00</span>
+      </div>
+
+      <div class="arena-board-box">
+        <!-- 棋盘容器（M1.2 契约：无 padding，宽度即棋盘边长） -->
+        <div class="board-wrap"><canvas id="board"></canvas></div>
+        <span class="arena-hint">选择左侧模式开始对局</span>
+      </div>
+
+      <!-- 计时条：退出 | 规则（计时已上移到棋盘正上方） -->
+      <div class="arena-bar">
+        <button type="button" class="top-bar__btn" id="btn-exit">
+          <span class="icon-bar icon-bar--back" aria-hidden="true"></span>退出
+        </button>
+        <button type="button" class="top-bar__btn top-bar__btn--right" id="btn-rules">规则</button>
+      </div>
+
+      <!-- 状态栏 + 操作栏（对局面板 / 复盘面板互斥，id 契约与 game.js 对齐） -->
+      <div class="game-bar">
+        <div id="play-panel">
+          <div class="game-status">
+            <span id="status-turn">选择模式开始对局</span>
+            <span id="status-move">第 0 手</span>
+          </div>
+          <div class="game-actions">
+            <button type="button" class="btn" id="btn-undo">悔棋</button>
+            <button type="button" class="btn" id="btn-draw">求和</button>
+            <button type="button" class="btn" id="btn-resign">认输</button>
+          </div>
+        </div>
+
+        <!-- 复盘面板（M4.1）：结算后 [复盘] 进入，与对局面板互斥 -->
+        <div id="replay-panel" hidden>
+          <div class="game-status">
+            <span>复盘</span>
+            <span id="replay-count">第 0 / 0 手</span>
+          </div>
+          <div class="game-actions">
+            <button type="button" class="btn" id="btn-prev">上一步</button>
+            <button type="button" class="btn" id="btn-next">下一步</button>
+            <button type="button" class="btn" id="btn-exit-replay">退出复盘</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右栏：上半排行榜速览 + 下半公屏聊天面板（仿 QQ 游戏大厅棋室聊天） -->
+    <aside class="home-right">
+      <!-- 上半：排行榜（api.getRank 取数；空态提示，接上后端即亮） -->
+      <section class="home-rank">
+        <h2 class="home-rank__title">
+          <img class="home-rank__banner" src="assets/sysytem/leaderboard.png" alt="排行榜">
+        </h2>
+        <ul class="home-rank__list" id="home-rank-list"></ul>
+      </section>
+
+      <!-- 下半：公屏聊天面板（仿 QQ 游戏大厅棋室聊天；九期接入后端） -->
+      <section class="home-chat home-chat--board">
+        <div class="home-chat__feed" id="chat-feed" aria-live="polite"></div>
+        <div class="home-chat__inputrow">
+          <input class="home-chat__input" id="chat-input" type="text"
+                 maxlength="60" placeholder="和大家打个招呼吧…" />
+          <button class="home-chat__send" id="chat-send" type="button">发送</button>
+        </div>
+        <span class="home-chat__badge">公屏联机 · 九期接入后端</span>
+      </section>
+    </aside>
+  </main>
+
+  <!-- 底部导航：common.js 读 data-nav 自动渲染（M0.7）；设置 tab 开设置弹窗（M3.5） -->
+  <nav class="tab-bar" data-nav="home"></nav>
+
+  <!-- js 统一放 body 末尾，按依赖顺序：api（数据）→ common（组件）→
+       board（棋盘渲染）→ game（对局；body data-arena=1 时进入待机态，
+       由下方脚本点模式卡片就地开局） -->
+  <script src="js/api.js"></script>
+  <script src="js/common.js?v=5"></script>
+  <script src="js/puzzles-data.js"></script>
+  <script src="js/board.js?v=7"></script>
+  <script src="js/puzzle.js?v=2"></script>
+  <script src="js/game.js?v=14"></script>
+  <script>
+    // M3.4：? 与导航"设置"tab 同一入口
+    document.getElementById('btn-settings').addEventListener('click', showSettings);
+
+    /* 登录/注册/账号全弹窗化（不再跳 login.html）：
+       - askLogin：人机/在线/房间等入口的"请先登录"统一弹登录窗，
+         登录成功后接着执行 after（原地继续刚才想做的事）
+       - refreshTopbar：登录/退出后原地刷新顶栏（昵称/积分/金币/头像） */
+    function refreshTopbar(user) {
+      if (user) { applyUser(user); return; } // 登录弹窗刚拿到手的数据，别再拉一遍
+      Api.refreshSkins().then((u) => {
+        if (!u) { // 已退出：回游客态
+          document.getElementById('user-name').textContent = '游客 · 点击登录';
+          document.getElementById('user-score').hidden = true;
+          const coinEl = document.getElementById('coin-num');
+          if (coinEl) coinEl.textContent = '—';
+          const diaEl = document.getElementById('diamond-num');
+          if (diaEl) diaEl.textContent = '0';
+          return;
+        }
+        applyUser(u);
+      }).catch(() => {});
+    }
+
+    function applyUser(u) {
+      document.getElementById('user-name').textContent = u.name;
+      const scoreEl = document.getElementById('user-score');
+      scoreEl.textContent = '积分 ' + u.score;
+      scoreEl.hidden = false;
+      const coinEl = document.getElementById('coin-num');
+      if (coinEl && typeof u.coins === 'number') coinEl.textContent = u.coins;
+      const diaEl = document.getElementById('diamond-num');
+      if (diaEl && typeof u.diamonds === 'number') diaEl.textContent = u.diamonds;
+    }
+
+    function askLogin(after) {
+      showAuthModal((u) => {
+        refreshTopbar(u);
+        if (typeof after === 'function') after();
+        // 登录成功即算"第一次进来"：自动弹签到面板领奖励
+        setTimeout(() => openCheckinOnce(), 300);
+      });
+    }
+
+    /* 每日签到：登录后每天首次进首页自动弹一次（gomoku.checkin.last 记上次弹出日）；
+       顶栏头像/账号弹窗也可手动再开 */
+    let checkinShown = false;
+
+    function openCheckinOnce() {
+      if (checkinShown || !Api.isLogin()) return;
+      let last = '';
+      try { last = localStorage.getItem('gomoku.checkin.last') || ''; } catch (e) { /* 忽略 */ }
+      const today = new Date();
+      const todayStr = today.getFullYear() + '-' +
+        String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+      if (last === todayStr) return; // 今天弹过了
+      checkinShown = true;
+      try { localStorage.setItem('gomoku.checkin.last', todayStr); } catch (e) { /* 忽略 */ }
+      showCheckinModal((p) => {
+        // 签到/补签到账：顶栏金币/钻石原地刷新
+        const coinEl = document.getElementById('coin-num');
+        if (coinEl && p && typeof p.coins === 'number') coinEl.textContent = p.coins;
+        const diaEl = document.getElementById('diamond-num');
+        if (diaEl && p && typeof p.diamonds === 'number') diaEl.textContent = p.diamonds;
+      });
+    }
+
+    // M6.5/M6.8：残局挑战进度角标（gomoku.puzzle 存已通关卡 id 数组；
+    // 分母 300 = 三模式 × 100 关，与 puzzles-data.js 同步维护）
+    try {
+      const cleared = JSON.parse(localStorage.getItem('gomoku.puzzle')) || [];
+      if (Array.isArray(cleared) && cleared.length) {
+        const badge = document.getElementById('puzzle-badge');
+        badge.textContent = '已通 ' + cleared.length + '/300 关';
+        badge.hidden = false;
+      }
+    } catch (e) { /* 读不到进度就不显示角标 */ }
+
+    // H3/H5：顶栏注入用户信息；refreshSkins 顺带换肤注入（棋盘/棋子/头像）；
+    // 401 时 api.request 已清 token 保持游客态
+    refreshTopbar();
+
+    // 每日签到：登录后每天首次进首页自动弹（游客不弹；askLogin 成功后也会弹）
+    if (Api.isLogin()) openCheckinOnce();
+
+    // H5/九期修：顶栏头像——已选头像（缓存）直接显示；未选/游客回落
+    // 初始头像"双丸子"（avatar-buns 免费默认款），不再显示 SVG 人形/问号
+    (function () {
+      const slot = document.getElementById('top-avatar');
+      if (!slot) return;
+      const av = Api.cachedSkin('avatar');
+      const img = (av && av.img) || 'assets/avatars/avatar01.png';
+      slot.innerHTML = '<img src="' + img + '" alt="" ' +
+        'onerror="this.src=\'assets/avatars/avatar01.png\'" ' +
+        'style="width:100%;height:100%;object-fit:contain">';
+    })();
+
+    // 金币记录：一期无流水接口，展示余额与来源说明（对局获胜 +20、注册赠 500）
+    document.getElementById('btn-coins').addEventListener('click', () => {
+      if (!Api.isLogin()) { askLogin(); return; }
+      showModal({
+        title: '金币记录',
+        body: '<span class="modal-currency modal-currency--coin" aria-hidden="true"></span>' +
+              '当前余额 <b>' + (document.getElementById('coin-num').textContent || '—') + '</b> 金币' +
+              '<br><br>获得来源：<br>注册赠送 500 · 对局获胜 +20（残局/人机不计）' +
+              '<br><span class="modal-note">明细流水接口规划中，敬请期待</span>',
+        buttons: [{ text: '知道了', type: 'primary' }],
+      });
+    });
+
+    // 钻石记录：后端一期未接入钻石体系
+    document.getElementById('btn-diamonds').addEventListener('click', () => {
+      showModal({
+        title: '钻石记录',
+        body: '<span class="modal-currency modal-currency--diamond" aria-hidden="true"></span>' +
+              '当前余额 0 钻石' +
+              '<br><span class="modal-note">钻石系统暂未开放，敬请期待</span>',
+        buttons: [{ text: '知道了', type: 'primary' }],
+      });
+    });
+
+    /* ==================================================
+       中央竞技场：模式卡片就地开局（game.js 的 window.gomokuGame）
+       ================================================== */
+    const arena = document.getElementById('arena');
+    const game = window.gomokuGame;
+
+    function goPlaying() {
+      if (window.gomokuPuzzle) window.gomokuPuzzle.destroy(); // 残局让位：摘监听，Game.resume 回待机
+      arena.classList.remove('is-idle');
+      refitSoon(); // 待机隐藏的围绕件回来了，列高变化 → 下一帧重新量棋盘
+    }
+
+    /* —— 模式切换防误触：上一局没结束，不允许静默开下一局 —— */
+
+    /**
+     * 是否有未结束的对局：残局进了关未破解 / 在线在排队·房间·对局 /
+     * 本地·人机已开局未终局。开局即算数（含一子未落）——
+     * 切模式一律先弹确认，不再静默把人家的局抹掉。
+     * 在线终局（gameOver）后不再拦截：终局会话已 finished，切走无碍
+     */
+    function gameInProgress() {
+      if (window.gomokuPuzzle) {
+        const p = window.gomokuPuzzle;
+        return !!(p.level && !p.gameOver);
+      }
+      if (!game) return false;
+      if (game.mode === 'online' && !game.gameOver) return true;
+      return (game.mode === 'local' || game.mode === 'bot') && !game.gameOver;
+    }
+
+    /**
+     * 在线"离开"统一收尾：对局中尽力即时认输（通知对方终局，别让人空等），
+     * 排队/房间等待中取消匹配并解散等待房间。终局后才调是无操作。
+     */
+    function discardOnlineNow() {
+      if (!game || game.mode !== 'online' || game.gameOver) return;
+      if (game.onlineGameId) Api.onlineResign(game.onlineGameId).catch(() => {});
+      else Api.onlineQueueCancel().catch(() => {});
+    }
+
+    /** 模式入口统一闸门：对局进行中先弹确认，用户点头才放行切局。
+     *  在线局给出认输判负的明确告知，并真的通知服务端 */
+    function guardMode(next) {
+      if (!gameInProgress()) { next(); return; }
+      const onlineLive = game.mode === 'online' && !game.gameOver;
+      showModal({
+        title: '你正在游戏中',
+        body: onlineLive
+          ? '当前在线对局尚未结束，中途退出将记为认输：对方获胜并结算积分；排队/等待将自动取消。确定要开新的一局吗？'
+          : '当前对局尚未结束，中途退出进度不会保存。确定要开新的一局吗？',
+        buttons: [
+          { text: '继续当前对局' },
+          { text: '退出并开新局', type: 'primary', onClick: () => { discardOnlineNow(); next(); } },
+        ],
+      });
+    }
+
+    /* —— 底部导航/顶栏头像也是整页跳转，同样会静默丢局：对局进行中先确认。
+        tab 链接由 common.js 在 DOMContentLoaded 后才渲染，
+        故用 nav 容器上的事件委托（容器本身在 HTML 里，时序无关） —— */
+    (function () {
+      const bar = document.querySelector('.tab-bar');
+      if (bar) {
+        bar.addEventListener('click', (e) => {
+          const a = e.target.closest('a');
+          if (!a || !gameInProgress()) return; // 空闲/终局：默认跳转
+          e.preventDefault();
+          const href = a.getAttribute('href');
+          const onlineLive = game.mode === 'online' && !game.gameOver;
+          showModal({
+            title: '你正在游戏中',
+            body: onlineLive
+              ? '在线对局中途离开将记为认输：对方获胜并结算积分（排队/等待将自动取消）。确定要离开吗？'
+              : '当前对局尚未结束，离开后进度不会保存。确定要离开吗？',
+            buttons: [
+              { text: '继续当前对局' },
+              { text: '退出并离开', type: 'primary', onClick: () => {
+                if (onlineLive) discardOnlineNow();
+                location.href = href;
+              } },
+            ],
+          });
+        });
+      }
+      const me = document.getElementById('top-me');
+      if (me) {
+        me.addEventListener('click', () => {
+          // 已登录：弹账号卡（积分/金币/退出登录）；游客：弹登录/注册
+          if (Api.isLogin()) {
+            Api.getUser().then((u) => {
+              showAccountModal(u, refreshTopbar);
+            }).catch(() => {
+              // token 失效已被 request() 清掉：回落登录窗
+              refreshTopbar();
+              askLogin();
+            });
+            return;
+          }
+          if (gameInProgress()) {
+            showModal({
+              title: '你正在游戏中',
+              body: '登录不影响当前对局，弹窗关闭后可继续下棋。',
+              buttons: [
+                { text: '暂不登录' },
+                { text: '去登录', type: 'primary', onClick: () => askLogin() },
+              ],
+            });
+            return;
+          }
+          askLogin();
+        });
+      }
+    })();
+
+    // 本地双人：先弹确认再开局——防止"还没反应过来棋盘就开打了"。
+    // 旧局进行中先过 guardMode（防静默丢局），确认弹窗在放行之后
+    document.getElementById('mode-local').addEventListener('click', () => {
+      guardMode(() => {
+        showModal({
+          title: '本地双人',
+          body: '两人同屏轮流落子，黑先白后，先连成五子者胜。<br><br>' +
+                '本局没有存档，中途切到其他模式或离开页面即作废。',
+          buttons: [
+            { text: '再想想' },
+            { text: '开始对局', type: 'primary', onClick: () => { goPlaying(); game.setMode('local'); } },
+          ],
+        });
+      });
+    });
+
+    // 人机对战：防误触闸门在前（对局进行中先确认），登录校验在放行之后
+    // ——游客态弹登录窗，登录成功原地续开人机局（不再跳页丢局）
+    document.getElementById('mode-bot').addEventListener('click', () => {
+      guardMode(() => {
+        if (!Api.isLogin()) {
+          toast('人机对战需要先登录');
+          askLogin(() => {
+            if (!Api.isLogin()) return; // 弹窗里没登录（直接关了）就不开局
+            showModal({
+              title: '人机对战',
+              body: '选择电脑棋力档位，你执黑先行：<ol style="text-align:left;margin:6px 0 0 1.2em">'
+                + '<li>入门 · 会堵冲四，会犯小错</li>'
+                + '<li>进阶 · 两步推理，不易失误</li>'
+                + '<li>高手 · 四步推理，最强防御</li></ol>',
+              buttons: [
+                { text: '入门', onClick: () => { goPlaying(); game.setMode('bot', { level: 1 }); } },
+                { text: '进阶', type: 'primary', onClick: () => { goPlaying(); game.setMode('bot', { level: 2 }); } },
+                { text: '高手', onClick: () => { goPlaying(); game.setMode('bot', { level: 3 }); } },
+              ],
+            });
+          });
+          return;
+        }
+        showModal({
+          title: '人机对战',
+          body: '选择电脑棋力档位，你执黑先行：<ol style="text-align:left;margin:6px 0 0 1.2em">'
+            + '<li>入门 · 会堵冲四，会犯小错</li>'
+            + '<li>进阶 · 两步推理，不易失误</li>'
+            + '<li>高手 · 四步推理，最强防御</li></ol>',
+          buttons: [
+            { text: '入门', onClick: () => { goPlaying(); game.setMode('bot', { level: 1 }); } },
+            { text: '进阶', type: 'primary', onClick: () => { goPlaying(); game.setMode('bot', { level: 2 }); } },
+            { text: '高手', onClick: () => { goPlaying(); game.setMode('bot', { level: 3 }); } },
+          ],
+        });
+      });
+    });
+
+    // 残局闯关：与其他模式一致，就地用中央竞技场棋盘（M6 首页共用）。
+    // 在线会话进行中（匹配/房间/对局）不就地抢盘，保持跳独立页的旧行为
+    document.getElementById('mode-puzzle').addEventListener('click', () => {
+      if (window.gomokuPuzzle) return; // 已在残局中，防重复 boot 叠加弹窗
+      guardMode(() => {
+        if (game.mode === 'online') {
+          location.href = 'game.html?mode=puzzle';
+          return;
+        }
+        goPlaying();
+        game.suspend(); // 停表/停轮询/冻结自家按钮，棋盘让给残局
+        Puzzle.boot(window.gomokuBoard);
+      });
+    });
+
+    // 九期在线模式：防误触闸门在前，登录校验在放行之后
+    // （匹配/对弈都在主页棋盘进行，掉线重进自动续局）
+    document.getElementById('mode-online').addEventListener('click', () => {
+      guardMode(() => {
+        if (!Api.isLogin()) {
+          toast('在线对战需要先登录');
+          askLogin(() => {
+            if (!Api.isLogin()) return;
+            goPlaying();
+            game.setMode('online');
+          });
+          return;
+        }
+        goPlaying();
+        game.setMode('online');
+      });
+    });
+
+    // 九期房间组队：防误触闸门在前，登录校验在放行之后
+    // （创建 = 我是房主 / 加入 = 输入好友房间号）
+    document.getElementById('mode-room').addEventListener('click', () => {
+      guardMode(() => {
+        if (!Api.isLogin()) {
+          toast('房间组队需要先登录');
+          askLogin(() => {
+            if (!Api.isLogin()) return;
+            document.getElementById('mode-room').click();
+          });
+          return;
+        }
+        showModal({
+          title: '房间组队',
+          body: '<div style="text-align:left;margin:4px 0 0">创建房间把 6 位房间号告诉好友，' +
+                '或输入对方的房间号加入对局。</div>',
+          buttons: [
+            { text: '加入房间', onClick: () => { goRoom('join'); } },
+            { text: '创建房间', type: 'primary', onClick: () => { goRoom('host'); } },
+          ],
+        });
+      });
+    });
+
+    function goRoom(kind) {
+      goPlaying();
+      if (kind === 'host') {
+        game.setMode('online', { room: 'host' });
+        return;
+      }
+      // 加入：先弹输入框收号，收好号再进房间流程（game.js 会再校验）
+      askRoomCode('', '');
+    }
+
+    function askRoomCode(errMsg, prefill) {
+      let input; // 弹窗内输入框引用：按钮回调时弹窗已关、节点已脱离 DOM，
+                 // 须靠闭包引用读值（脱离节点的 .value 依然有效）
+      const close = showModal({
+        title: '加入房间',
+        body: '<div class="match-wait__line">输入好友的 6 位房间号：</div>' +
+              '<input class="room-input" id="home-room-input" type="text" inputmode="numeric"' +
+              ' maxlength="6" placeholder="如 386402" value="' + prefill + '">' +
+              (errMsg ? '<div class="match-wait__hint">' + errMsg + '</div>' : ''),
+        buttons: [
+          { text: '取消' },
+          { text: '加入', type: 'primary', onClick: () => {
+            const val = (input ? input.value : '').replace(/\D/g, '');
+            if (val.length !== 6) {
+              askRoomCode('房间号为 6 位数字', val); // 弹窗已关，重开并带回错误提示
+              return;
+            }
+            game.setMode('online', { room: 'join', code: val });
+          } },
+        ],
+      });
+      input = document.getElementById('home-room-input');
+      if (input) {
+        input.focus();
+        input.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter') return;
+          const val = input.value.replace(/\D/g, '');
+          if (val.length === 6) {
+            close(); // 与按钮同路径：先关弹窗再开局
+            game.setMode('online', { room: 'join', code: val });
+          }
+        });
+      }
+    }
+
+    // 深链：?mode=puzzle 直达残局（与点击卡片同路径；?level=<id> 由 Puzzle.boot 解析，
+    // 仍受闯关闸门管：锁关会被挡回选关）
+    if (new URLSearchParams(location.search).get('mode') === 'puzzle') {
+      document.getElementById('mode-puzzle').click();
+    }
+
+    // 九期：误点导航离开/刷新回来，自动接回未完成的在线对局（含排队中）；
+    // 深链 ?mode=puzzle 时不自动续（用户意图是残局）
+    if (Api.isLogin() &&
+        new URLSearchParams(location.search).get('mode') !== 'puzzle') {
+      Api.onlineQueueStatus().then((resp) => {
+        if (resp && (resp.status === 'matched' || resp.status === 'waiting')) {
+          goPlaying();
+          game.setMode('online', { resume: true });
+        }
+      }).catch(() => {}); // 未登录/网络失败等不影响正常待机
+    }
+
+    /* ==================================================
+       右栏：排行榜速览（api.getRank，空态/兜底与 rank.html 同构）
+       ================================================== */
+    Api.getRank().then((list) => {
+      const ul = document.getElementById('home-rank-list');
+      if (!ul) return;
+      if (!list || !list.length) {
+        ul.innerHTML = '<li class="home-rank__empty">暂无数据 · 等待后端接入</li>';
+        return;
+      }
+      const MEDALS = ['1st', '2nd', '3rd'];
+      const MEDAL_NAMES = ['冠军', '亚军', '季军'];
+      list.slice(0, 10).forEach((u, i) => {
+        const li = document.createElement('li');
+        li.className = 'home-rank__row' + (i < 3 ? ' home-rank__row--top' : '');
+        const no = i < 3
+          ? '<img class="home-rank__medal" src="assets/sysytem/rank-' + MEDALS[i] + '.png" alt="' + MEDAL_NAMES[i] + '">'
+          : '<span class="home-rank__no">' + (i + 1) + '</span>';
+        li.innerHTML = no +
+          '<span class="home-rank__name">' + u.name + '</span>' +
+          '<span class="home-rank__score">' + u.score + ' 分</span>';
+        ul.appendChild(li);
+      });
+    }).catch(() => {
+      const ul = document.getElementById('home-rank-list');
+      if (ul) ul.innerHTML = '<li class="home-rank__empty">榜单加载失败 · 请稍后再试</li>';
+    });
+
+    /* ==================================================
+       右栏：公屏聊天面板（H7 全服公屏）
+        2.5s 增量轮询 /api/chat/recent；发言须登录，
+        服务端集中做屏蔽词过滤与频控；消息纯内存不回放——
+        进房(含刷新/重登)只看入座后的发言；后端不可达回落本地回音
+        ================================================== */
+    (function () {
+      const feed = document.getElementById('chat-feed');
+      const input = document.getElementById('chat-input');
+      const send = document.getElementById('chat-send');
+      if (!feed || !input || !send) return;
+
+      let myName = '我';
+      let lastId = 0;
+      let serverOk = false; // 还没拉到过服务端消息时，允许本地欢迎语兜底
+
+      if (Api.isLogin()) {
+        // 登录后用真名匹配"自己"的高亮样式；失败保持"我"
+        Api.getUser().then((u) => { if (u && u.name) myName = u.name; }).catch(() => {});
+      }
+
+      function nowLabel() {
+        return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      function pushMsg(m) {
+        if (m.id) {
+          if (m.id <= lastId) return; // 轮询窗口重叠去重
+          lastId = m.id;
+        }
+        const div = document.createElement('div');
+        div.className = 'chat-msg' +
+          (m.system ? ' chat-msg--sys' : (m.name === myName ? ' chat-msg--me' : ''));
+        div.innerHTML =
+          '<span class="chat-msg__time"></span>' +
+          '<span class="chat-msg__name"></span>' +
+          '<span class="chat-msg__text"></span>';
+        div.querySelector('.chat-msg__time').textContent = m.time || nowLabel();
+        div.querySelector('.chat-msg__name').textContent = m.system ? '' : (m.name + '：');
+        div.querySelector('.chat-msg__text').textContent = m.content; // textContent 防注入
+        feed.appendChild(div);
+        while (feed.children.length > 200) feed.removeChild(feed.firstChild); // 防长挂爆内存
+        feed.scrollTop = feed.scrollHeight; // 有新消息就贴底（聊天面板惯例）
+      }
+
+      function seedLocal() {
+        pushMsg({ id: 0, system: true, content: '欢迎来到硕鹏五子棋棋室，请文明发言~' });
+        pushMsg({ id: 0, system: true, content: '仅展示入座后的发言，历史不保存' });
+      }
+
+      async function poll() {
+        try {
+          const list = await Api.chatRecent(lastId);
+          serverOk = true;
+          if (!feed.children.length) {
+            // 服务端不回放历史，首拉只有"入座"系统消息——先铺一条欢迎语
+            pushMsg({ id: 0, system: true, content: '欢迎来到硕鹏五子棋棋室，请文明发言~' });
+          }
+          (list || []).forEach(pushMsg);
+        } catch (e) {
+          if (!feed.children.length) seedLocal();
+        }
+      }
+
+      async function sendText() {
+        const text = input.value.replace(/\s+/g, ' ').trim();
+        if (!text) return;
+        if (!Api.isLogin()) { toast('请先登录再发言'); askLogin(); return; } // 未登录先别清输入框
+        input.value = '';
+        try {
+          const m = await Api.chatSend(text);
+          if (m && m.id) pushMsg(m); // 上屏的是服务端过滤后的文本（屏蔽词已成星号）
+          else pushMsg({ id: 0, name: myName, content: text }); // mock/兜底：本地回音
+          input.focus();
+        } catch (e) {
+          // 网络不可达：本地回音，不丢话；业务错误（频控等）toast 已在 request 抛出
+          if (e && e.message && e.message.indexOf('网络') < 0) {
+            toast(e.message);
+          } else {
+            pushMsg({ id: 0, name: myName, content: text });
+          }
+        }
+      }
+
+      send.addEventListener('click', sendText);
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendText(); });
+
+      poll();
+      setInterval(poll, 2500);
+    })();
+
+    /* ==================================================
+       大屏（≥1200）：竞技场棋盘 = 信息条/操作栏之间的剩余高度（正方形），
+       首页脚本实时量高写宽，四段（信息条/棋盘/计时/操作）保持同宽同轴；
+       收窄窗口即可验证棋盘始终顶到操作栏、一屏到底不滚动
+       ================================================== */
+    function fitArena() {
+      if (!window.matchMedia('(min-width: 1200px)').matches) {
+        // 缩到小屏：清掉内联定宽，回到样式表的响应式尺寸
+        arena.querySelectorAll('.arena-board-box, .players, .arena-bar, .game-bar')
+          .forEach((el) => { el.style.width = ''; });
+        return;
+      }
+      const box = arena.querySelector('.arena-board-box');
+      if (!box) return;
+      const h = box.clientHeight; // 垫板已去 padding/border：h 即画布边长
+      if (h <= 0) return;
+      /* 横向矩形棋盘：上下不变（h = 旧正方形边长），
+         左右加宽到 e×1.4、不超过中列可容宽（预留左右各 12px 呼吸）；
+         列宽连正方形都装不下时压到列宽，board.js 会回退正方形 */
+      let w = h; // 兜底正方形外宽（无 padding/border：垫板外宽=画布宽）
+      const colEl = box.parentElement; // 中列（#arena 面板）
+      const col = colEl.clientWidth;   // 含横向内衬（padding）
+      const cs = getComputedStyle(colEl);
+      const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      const maxOuter = col - padX;
+      if (h > 40 && maxOuter > 0) {
+        w = Math.min(Math.round(h * 1.4), maxOuter - 24);
+        if (w < h) w = Math.min(h, maxOuter);
+      }
+      arena.querySelectorAll('.arena-board-box, .players, .arena-bar, .game-bar')
+        .forEach((el) => { el.style.width = w + 'px'; });
+    }
+
+    function refitSoon() {
+      requestAnimationFrame(() => {
+        fitArena();
+        if (window.gomokuBoard) window.gomokuBoard._handleResize(); // 尺寸改完通知棋盘重绘
+      });
+    }
+
+    window.addEventListener('resize', refitSoon);
+    fitArena();
+    if (window.gomokuBoard) window.gomokuBoard._handleResize();
+  </script>
+
+</body>
+</html>

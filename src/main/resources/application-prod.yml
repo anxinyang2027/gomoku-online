@@ -1,0 +1,16 @@
+# 生产环境：密钥必须来自环境变量，缺失即启动失败（防带默认密钥上线）
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+gomoku:
+  jwt:
+    # 空串占位：GOMOKU_JWT_SECRET 未设置时这里也是空 → JwtUtil 校验拦下启动
+    secret: ${GOMOKU_JWT_SECRET:}
+
+logging:
+  level:
+    root: warn
+  file:
+    name: /var/log/gomoku/app.log

@@ -1,0 +1,268 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>商城 · 五子棋</title>
+  <link rel="stylesheet" href="css/style.css?v=22">
+</head>
+<body>
+
+  <header class="top-bar">
+    <h1 class="top-bar__title">商城</h1>
+    <!-- 五期数据位：金币余额，购买系统点亮时填充（参考界面的货币栏） -->
+    <span class="top-bar__coin" id="shop-coin">金币 —</span>
+  </header>
+
+  <main class="page">
+    <!-- 分类页签：顶栏大标题下横排 li，点击只显示该类商品（切换显示而非下滑定位）。
+         放在 .page 内：空数据整块替换为 .empty 时页签一并清掉，无残留 -->
+    <ul class="shop-tabs" id="shop-tabs">
+      <li class="shop-tabs__item is-active" data-cat="board">棋盘</li>
+      <li class="shop-tabs__item" data-cat="avatar">头像</li>
+    </ul>
+
+    <!-- M5.4/M5.5：Api.getShop() 取数 → 按 cat 分组渲染进三个网格；
+         空数据时整块替换为 .empty 空态（同 rank/history 模式）。
+         页签切换：非当前分类的分区加 hidden，默认只亮棋盘 -->
+    <section class="shop-section" id="shop-board">
+      <h2 class="shop-section__title">棋盘</h2>
+      <div class="shop-grid" id="grid-board"></div>
+    </section>
+
+    <section class="shop-section" id="shop-avatar" hidden>
+      <h2 class="shop-section__title">头像</h2>
+      <div class="shop-grid" id="grid-avatar"></div>
+    </section>
+  </main>
+
+  <!-- 底部导航：common.js 读 data-nav 自动渲染（M0.7）；
+       "商城"tab 与高亮在 M5.6 换上，此前只能输 URL 到达本页 -->
+  <nav class="tab-bar" data-nav="shop"></nav>
+
+  <!-- js 统一放 body 末尾，按依赖顺序：api（数据）→ common（组件） -->
+  <script src="js/api.js"></script>
+  <script src="js/common.js?v=2"></script>
+  <script>
+    // H5 商城点亮：购买（金币）→ 使用（换肤注入）→ 使用中标记
+    (function () {
+      'use strict';
+
+      /* 状态：items 商品全集 / owned 已购 / skins 两键（棋盘/头像） / user 当前用户（金币） */
+      var state = { items: [], owned: new Set(), skins: {}, user: null };
+
+      /* M5.5：SVG 字符串 → 元素（内联 SVG，不引图片文件） */
+      function svgEl(html) {
+        var d = document.createElement('div');
+        d.innerHTML = html;
+        return d.firstElementChild;
+      }
+
+      /* M5.5：棋盘预览——皮肤色底 + 网格 + 两颗示例子。
+         示例子用 var(--stone-*)：换肤后，所有棋盘预览自动跟着变 */
+      function previewBoard(item) {
+        var board = item.colors['--board'];
+        var line = item.colors['--board-line'];
+        var s = '<svg viewBox="0 0 64 64" style="display:block;width:100%;height:100%">';
+        s += '<rect width="64" height="64" fill="' + board + '"/>';
+        for (var i = 0; i <= 6; i++) {
+          var p = 8 + i * 8;
+          s += '<line x1="8" y1="' + p + '" x2="56" y2="' + p + '" stroke="' + line + '" stroke-width="1"/>';
+          s += '<line x1="' + p + '" y1="8" x2="' + p + '" y2="56" stroke="' + line + '" stroke-width="1"/>';
+        }
+        s += '<circle cx="24" cy="32" r="4.5" style="fill:var(--stone-black)"/>';
+        s += '<circle cx="40" cy="24" r="4.5" style="fill:var(--stone-white);stroke:var(--stone-edge);stroke-width:0.8"/>';
+        return svgEl(s + '</svg>');
+      }
+
+      /* M5.5：头像预览——皮肤色圆 + glyph 字符 */
+      function previewAvatar(item) {
+        var c = item.colors;
+        return svgEl(
+          '<svg viewBox="0 0 64 64" style="display:block;width:100%;height:100%">' +
+          '<circle cx="32" cy="32" r="20" fill="' + c['--avatar-bg'] + '"/>' +
+          '<text x="32" y="32" text-anchor="middle" dominant-baseline="central" font-size="20" fill="' + c['--avatar-fg'] + '">' + item.glyph + '</text>' +
+          '</svg>'
+        );
+      }
+
+      var PREVIEW = { board: previewBoard, avatar: previewAvatar };
+
+      /* M5.9：商品预览入口——带 img 直接显示图片（PNG 透明底融入预览区）；
+         图片缺失（onerror）换中性灰占位图；无 img 回落到三类 SVG 预览 */
+      function buildPreview(item) {
+        if (!item.img) return PREVIEW[item.cat](item);
+        var img = document.createElement('img');
+        img.className = 'shop-card__img';
+        img.src = item.img;
+        img.alt = item.name + '预览图';
+        img.loading = 'lazy';
+        img.addEventListener('error', function () {
+          img.replaceWith(svgEl(
+            '<svg viewBox="0 0 64 64" style="display:block;width:100%;height:100%">' +
+            '<circle cx="32" cy="32" r="18" fill="none" stroke="var(--text-dim)" stroke-width="2"/>' +
+            '<text x="32" y="32" text-anchor="middle" dominant-baseline="central" font-size="18" fill="var(--text-dim)">?</text>' +
+            '</svg>'
+          ));
+        });
+        return img;
+      }
+
+      /* 按钮态：inuse（使用中，禁用）/ use（已拥有或默认款）/ buy（金币价）/ default（游客默认款） */
+      function buttonState(item) {
+        if (Api.isLogin()) {
+          if (state.skins[item.cat] === item.id) return 'inuse';
+          if (state.owned.has(item.id) || item.price === 0) return 'use';
+        }
+        return item.price > 0 ? 'buy' : 'default';
+      }
+
+      /* M5.4：单张商品卡（预览 + 名称 + 状态按钮） */
+      function renderCard(item) {
+        var card = document.createElement('div');
+        card.className = 'shop-card';
+        card.dataset.skinId = item.id;
+
+        var preview = document.createElement('div');
+        preview.className = 'shop-card__preview';
+        preview.appendChild(buildPreview(item));
+
+        var name = document.createElement('div');
+        name.className = 'shop-card__name';
+        name.textContent = item.name;
+
+        var buy = document.createElement('button');
+        buy.type = 'button';
+        var st = buttonState(item);
+        if (st === 'inuse') {
+          buy.className = 'shop-card__buy shop-card__buy--default';
+          buy.textContent = '使用中';
+          buy.disabled = true;
+        } else if (st === 'use') {
+          buy.className = 'shop-card__buy';
+          buy.textContent = '使用';
+          buy.addEventListener('click', function () { useItem(item); });
+        } else if (st === 'buy') {
+          buy.className = 'shop-card__buy';
+          buy.textContent = item.price + ' 金币';
+          buy.addEventListener('click', function () {
+            if (Api.isLogin()) buyItem(item);
+            else toast('请先登录');
+          });
+        } else {
+          buy.className = 'shop-card__buy shop-card__buy--default';
+          buy.textContent = '默认';
+          buy.disabled = true;
+        }
+
+        card.appendChild(preview);
+        card.appendChild(name);
+        card.appendChild(buy);
+        return card;
+      }
+
+      function grids() {
+        return {
+          board: document.getElementById('grid-board'),
+          avatar: document.getElementById('grid-avatar'),
+        };
+      }
+
+      function renderGrids() {
+        var g = grids();
+        Object.keys(g).forEach(function (key) {
+          if (g[key]) g[key].innerHTML = '';
+        });
+        state.items.forEach(function (item) {
+          if (g[item.cat]) g[item.cat].appendChild(renderCard(item));
+        });
+      }
+
+      /* 分类页签：点 li 切换只显示该类分区（hidden 显隐）。
+         在取数成功后接线——空数据时 .page 已整体换成空态，页签不存在 */
+      function wireTabs() {
+        var tabs = document.getElementById('shop-tabs');
+        if (!tabs) return;
+        var sections = {
+          board: document.getElementById('shop-board'),
+          avatar: document.getElementById('shop-avatar'),
+        };
+        tabs.addEventListener('click', function (e) {
+          var li = e.target.closest('.shop-tabs__item');
+          if (!li) return;
+          var cat = li.dataset.cat;
+          tabs.querySelectorAll('.shop-tabs__item').forEach(function (el) {
+            el.classList.toggle('is-active', el === li);
+          });
+          Object.keys(sections).forEach(function (key) {
+            sections[key].hidden = key !== cat;
+          });
+        });
+      }
+
+      function setCoin(c) {
+        var el = document.getElementById('shop-coin');
+        if (el && typeof c === 'number') el.textContent = '金币 ' + c;
+      }
+
+      /* H5：购买 → 服务端事务扣金币+入库+自动装备；随后刷皮肤缓存与卡片态 */
+      async function buyItem(item) {
+        try {
+          var r = await Api.buyItem(item.id);
+          setCoin(r.coins);
+          toast('购买成功');
+          state.owned.add(item.id);
+          if (r.skins) state.skins = r.skins;
+          await Api.refreshSkins();
+          renderGrids();
+        } catch (err) {
+          toast(err.message || '购买失败，请稍后再试');
+        }
+      }
+
+      /* H5：使用 → 服务端换肤；注入当前页 + 更新缓存 */
+      async function useItem(item) {
+        try {
+          var skins = await Api.applySkin(item.id);
+          state.skins = skins;
+          await Api.refreshSkins();
+          toast('已应用「' + item.name + '」');
+          renderGrids();
+        } catch (err) {
+          toast(err.message || '操作失败，请稍后再试');
+        }
+      }
+
+      /* 取数：商品全集 + 登录态用户（金币/已购/在用）；空数据整块空态 */
+      (async function () {
+        try {
+          state.items = await Api.getShop();
+          if (Api.isLogin()) {
+            try {
+              var u = await Api.getUser();
+              if (u) {
+                state.user = u;
+                state.owned = new Set(u.owned || []);
+                state.skins = u.skins || {};
+                setCoin(u.coins);
+              }
+            } catch (err) { /* 网络抖动时保持游客态展示 */ }
+          }
+          Api.refreshSkins();
+        } catch (err) {
+          toast('加载失败，请稍后再试');
+          return;
+        }
+        if (!state.items || !state.items.length) {
+          document.querySelector('.page').innerHTML =
+            '<div class="empty"><p>暂无数据</p><p class="empty__hint">等待后端接入</p></div>';
+          return;
+        }
+        renderGrids();
+        wireTabs();
+      })();
+    })();
+  </script>
+
+</body>
+</html>

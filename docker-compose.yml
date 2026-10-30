@@ -1,0 +1,41 @@
+# 一键起整套：MySQL + 后端（前端静态资源已打进后端 jar）
+# 用法：docker compose up -d --build
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: gomoku-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: gomoku_root
+      MYSQL_DATABASE: gomoku
+      TZ: Asia/Shanghai
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"   # 宿主机 3307 避开本地已有 MySQL
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 建表脚本自动执行（容器首次初始化时按文件名序跑）
+      - ./src/main/resources/db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pgomoku_root"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    container_name: gomoku-app
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/gomoku?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: gomoku_root
+      GOMOKU_JWT_SECRET: change-me-in-production-0123456789abcdef
+      TZ: Asia/Shanghai
+    ports:
+      - "8080:8080"
+
+volumes:
+  mysql-data:

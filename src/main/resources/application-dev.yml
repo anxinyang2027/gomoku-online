@@ -1,0 +1,13 @@
+# 开发环境（默认激活）：本机 MySQL、固定开发密钥——只许在 dev 出现明文
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+gomoku:
+  jwt:
+    secret-dev: gomoku-dev-secret-0123456789abcdef0123456789abcdef
+
+logging:
+  level:
+    root: info

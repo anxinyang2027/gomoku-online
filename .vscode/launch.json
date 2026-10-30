@@ -1,0 +1,42 @@
+{
+    // 一体化之后的浏览器调试：先在 IDEA 里启动后端（GomokuApplication），
+    // 页面由后端同源伺服在 http://localhost:8080，再按 F5 打开
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Chrome · 首页 index",
+            "url": "http://localhost:8080/index.html",
+            "runtimeExecutable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+        },
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Chrome · 对局 game",
+            "url": "http://localhost:8080/game.html?mode=local",
+            "runtimeExecutable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+        },
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Chrome · 残局 puzzle",
+            "url": "http://localhost:8080/game.html?mode=puzzle",
+            "runtimeExecutable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+        },
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Chrome · 商城 shop",
+            "url": "http://localhost:8080/shop.html",
+            "runtimeExecutable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+        },
+        {
+            // 备用：Chrome 起不来时用 Edge（Win11 必装）
+            "type": "msedge",
+            "request": "launch",
+            "name": "Edge · 首页 index（备用）",
+            "url": "http://localhost:8080/index.html"
+        }
+    ]
+}

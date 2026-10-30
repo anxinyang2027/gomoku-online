@@ -1,0 +1,28 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# 本地配置、密钥、环境文件
+application-local.yml
+application-local.yaml
+.env
+*.properties.local
+
+# 前端静态打包产物（你H5页面编译后的资源）
+src/main/resources/static/assets/index-*.js
+
+# Mac系统文件
+.DS_Store
+
+# 日志
+logs/
+*.log

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>对局 · 五子棋</title>
+  <link rel="stylesheet" href="css/style.css?v=64">
+</head>
+<body>
+
+  <header class="top-bar">
+    <!-- M3.6：退出（M2.13）/ 计时（M2.5）/ 规则弹窗 -->
+    <button type="button" class="top-bar__btn" id="btn-exit">
+      <span class="icon-bar icon-bar--back" aria-hidden="true"></span>退出
+    </button>
+    <div class="top-bar__timer" id="timer">00:00</div>
+    <button type="button" class="top-bar__btn top-bar__btn--right" id="btn-rules">规则</button>
+  </header>
+
+  <main class="page page--game">
+    <!-- M3.7：双方信息条，轮到谁谁高亮；data-side 与棋子色对应（1 黑 2 白） -->
+    <div class="players">
+      <div class="players__item players__item--active" data-side="1">
+        <span class="players__stone players__stone--black" aria-hidden="true"></span>黑方（你）
+      </div>
+      <div class="players__item" data-side="2">
+        <span class="players__stone players__stone--white" aria-hidden="true"></span>白方
+      </div>
+    </div>
+
+    <!-- 棋盘容器（M1.2 契约：无 padding，宽度即棋盘边长） -->
+    <div class="board-wrap"><canvas id="board"></canvas></div>
+  </main>
+
+  <!-- M3.8：底部为状态栏 + 操作栏（1.txt 线框），不放底部导航 -->
+  <div class="game-bar">
+    <!-- 对局面板（M2） -->
+    <div id="play-panel">
+      <div class="game-status">
+        <span id="status-turn">当前回合 黑方落子</span>
+        <span id="status-move">第 0 手</span>
+      </div>
+      <div class="game-actions">
+        <button type="button" class="btn" id="btn-undo">悔棋</button>
+        <button type="button" class="btn" id="btn-draw">求和</button>
+        <button type="button" class="btn" id="btn-resign">认输</button>
+      </div>
+    </div>
+
+    <!-- 复盘面板（M4.1）：结算后 [复盘] 进入，与对局面板互斥 -->
+    <div id="replay-panel" hidden>
+      <div class="game-status">
+        <span>复盘</span>
+        <span id="replay-count">第 0 / 0 手</span>
+      </div>
+      <div class="game-actions">
+        <button type="button" class="btn" id="btn-prev">上一步</button>
+        <button type="button" class="btn" id="btn-next">下一步</button>
+        <button type="button" class="btn" id="btn-exit-replay">退出复盘</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 依赖顺序：puzzles-data（关卡数据，M6.8）→ api（接口，引用上面数据）→
+       common（弹窗等组件）→ board（渲染）→
+       puzzle（残局控制器，须在 game 前解析：game 底部初始化立即引用 Puzzle）→
+       game（对局逻辑；Sound 等运行时才被 puzzle 调用，顺序无碍） -->
+  <script src="js/puzzles-data.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/common.js?v=2"></script>
+  <script src="js/board.js?v=7"></script>
+  <script src="js/puzzle.js?v=2"></script>
+  <script src="js/game.js?v=14"></script>
+
+</body>
+</html>

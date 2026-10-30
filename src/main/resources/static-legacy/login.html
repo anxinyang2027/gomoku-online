@@ -1,0 +1,89 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录 · 五子棋</title>
+  <link rel="stylesheet" href="css/style.css?v=22">
+</head>
+<body>
+
+  <header class="top-bar">
+    <h1 class="top-bar__title" id="page-title">登录</h1>
+  </header>
+
+  <main class="page">
+    <!-- M3.9：表单骨架。一期前端非空校验 + "三期开放"提示；
+         真正的 api.login / api.register 三期接 -->
+    <form class="auth-form" id="auth-form" novalidate>
+      <input class="auth-form__input" id="auth-name" type="text" placeholder="用户名"
+             autocomplete="username" maxlength="20">
+      <input class="auth-form__input" id="auth-pwd" type="password" placeholder="密码"
+             autocomplete="current-password" maxlength="40">
+      <button class="btn btn--primary btn--block" type="submit" id="auth-submit">登 录</button>
+      <button type="button" class="auth-form__switch" id="auth-switch">没有账号？注册</button>
+    </form>
+  </main>
+
+  <!-- 底部导航：自动渲染（M0.7），登录页无高亮项 -->
+  <nav class="tab-bar"></nav>
+
+  <!-- js 统一放 body 末尾，按依赖顺序：api（数据）→ common（组件） -->
+  <script src="js/api.js"></script>
+  <script src="js/common.js"></script>
+  <script>
+    // M3.9：登录/注册切换 + 前端非空校验；提交提示"三期开放"
+    (function () {
+      let register = false;
+      const title = document.getElementById('page-title');
+      const submit = document.getElementById('auth-submit');
+      const switchBtn = document.getElementById('auth-switch');
+      const name = document.getElementById('auth-name');
+      const pwd = document.getElementById('auth-pwd');
+
+      switchBtn.addEventListener('click', () => {
+        register = !register;
+        submit.textContent = register ? '注 册' : '登 录';
+        switchBtn.textContent = register ? '已有账号？登录' : '没有账号？注册';
+        title.textContent = register ? '注册' : '登录';
+      });
+
+      document.getElementById('auth-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!name.value.trim()) {
+          toast('请输入用户名');
+          name.focus();
+          return;
+        }
+        if (!pwd.value) {
+          toast('请输入密码');
+          pwd.focus();
+          return;
+        }
+        submitBtn();
+      });
+
+      async function submitBtn() {
+        const n = name.value.trim();
+        try {
+          let r;
+          if (register) {
+            r = await Api.register(n, pwd.value);
+            r = await Api.login(n, pwd.value); // 注册成功即登录，拿到 token
+          } else {
+            r = await Api.login(n, pwd.value);
+          }
+          try {
+            localStorage.setItem('gomoku.token', r.token);
+          } catch (err) { /* 忽略 */ }
+          toast(register ? '注册成功' : '登录成功');
+          setTimeout(() => { location.href = 'index.html'; }, 400);
+        } catch (err) {
+          toast(err.message || '操作失败，请稍后再试');
+        }
+      }
+    })();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,49 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>战绩 · 五子棋</title>
+  <link rel="stylesheet" href="css/style.css?v=22">
+</head>
+<body>
+
+  <header class="top-bar">
+    <h1 class="top-bar__title">战绩</h1>
+  </header>
+
+  <main class="page">
+    <!-- M3.11：战绩（api.getHistory 取数，一期 mock 为空 → 空态） -->
+    <ul class="history-list" id="history-list"></ul>
+  </main>
+
+  <!-- 底部导航：common.js 读 data-nav 自动渲染（M0.7） -->
+  <nav class="tab-bar" data-nav="history"></nav>
+
+  <!-- js 统一放 body 末尾，按依赖顺序：api（数据）→ common（组件） -->
+  <script src="js/api.js"></script>
+  <script src="js/common.js?v=2"></script>
+  <script>
+    // M3.11：渲染战绩或空态；行形状 { win, opponent, time, moves }
+    // 与 api.js 注释一致，二期接上真实数据即亮
+    Api.getHistory().then((list) => {
+      const ul = document.getElementById('history-list');
+      if (!list || !list.length) {
+        ul.outerHTML = '<div class="empty"><p>暂无数据</p><p class="empty__hint">等待后端接入</p></div>';
+        return;
+      }
+      list.forEach((g) => {
+        const li = document.createElement('li');
+        li.className = 'history-row';
+        li.innerHTML =
+          '<span class="history-row__tag ' + (g.win ? 'history-row__tag--win' : 'history-row__tag--lose') + '">' +
+          (g.win ? '胜' : '负') + '</span>' +
+          '<span class="history-row__opp">对 ' + g.opponent + '</span>' +
+          '<span class="history-row__meta">' + g.time + ' · ' + g.moves + ' 手</span>';
+        ul.appendChild(li);
+      });
+    }).catch(() => toast('加载失败，请稍后再试'));
+  </script>
+
+</body>
+</html>
