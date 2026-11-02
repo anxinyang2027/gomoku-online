@@ -37,3 +37,5 @@
 ```bash
 git clone https://github.com/anxinyang2027/gomoku-online.git
 cd gomoku
+
+在线模式需用不同浏览器注册登录不同账号开始匹配，房间组队也是。
